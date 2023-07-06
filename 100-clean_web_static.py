@@ -1,11 +1,30 @@
 #!/usr/bin/python3
-"""script (based on the file 1-pack_web_static.py)
-that distributes an archive to your web servers,"""
+"""Fabric script (based on the file 3-deploy_web_static.py)
+ that deletes out-of-date archives"""
+
+
+#!/usr/bin/python3
+"""Fabric script (based on the file 2-do_deploy_web_static.py)"""
+
 from fabric.api import *
 from datetime import datetime
 from os.path import exists
 
 env.hosts = ['3.235.242.152', '3.81.29.69']
+
+
+def do_pack():
+    """ Fabric script that generates a .tgz
+archive from the contents of the web_static
+    """
+    local("sudo mkdir -p versions")
+    date = datetime.now().strftime("%Y%m%d%H%M%S")
+    filename = "versions/web_static_{}.tgz".format(date)
+    result = local("sudo tar -cvzf {} web_static".format(filename))
+    if result.succeeded:
+        return filename
+    else:
+        return None
 
 
 def do_deploy(archive_path):
@@ -41,3 +60,29 @@ def do_deploy(archive_path):
            format(name)).failed is True:
         return False
     return True
+
+
+def deploy():
+    """ function, using the new path of the new archive"""
+    new = do_pack()
+    if exists(new) is False:
+        return False
+    result = do_deploy(new)
+    return result
+
+
+def do_clean(number=0):
+    """that deletes out-of-date archives,"""
+    fileList = local("ls -lt versions", capture=True)
+    fileName = fileList.split("\n")
+    n = int(number)
+    if n in (0, 1):
+        n = 1
+    for i in fileName[n:]:
+        local("rm versions/{}".format(i))
+    path_server = run("ls -lt /data/web_static/releases")
+    path_server_name = path_server.split("\n")
+    for i in path_server_name[n:]:
+        if i is 'test':
+            continue
+        run("rm -rf /data/web_static/releases/{}".format(i))
